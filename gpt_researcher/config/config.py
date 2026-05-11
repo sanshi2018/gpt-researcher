@@ -90,6 +90,7 @@ class Config:
 
     def _set_llm_attributes(self) -> None:
         """Parse and set LLM provider and model attributes for all LLM types."""
+        # 在此处设置供应商，llm模型
         self.fast_llm_provider, self.fast_llm_model = self.parse_llm(self.fast_llm)
         self.smart_llm_provider, self.smart_llm_model = self.parse_llm(self.smart_llm)
         self.strategic_llm_provider, self.strategic_llm_model = self.parse_llm(self.strategic_llm)
