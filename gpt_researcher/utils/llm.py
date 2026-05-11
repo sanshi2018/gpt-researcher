@@ -125,9 +125,9 @@ async def create_chat_completion(
                 continue
             break
 
-        if cost_callback:
-            llm_costs = estimate_llm_cost(str(messages), response)
-            cost_callback(llm_costs)
+        # if cost_callback:
+        #     llm_costs = estimate_llm_cost(str(messages), response)
+        #     cost_callback(llm_costs)
 
         return response
 
