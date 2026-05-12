@@ -282,6 +282,8 @@ async def _process_sub_query(self, sub_query, scraped_data=[], query_domains=[])
 
     # ③ 上下文压缩（embed + similarity filter）
     if scraped_data:
+        # TODO langchian ContextCompressor 详解👇
+        # https://gemini.google.com/app/764a73c694c140c5
         web_context = await self.researcher.context_manager.get_similar_content_by_query(
             sub_query, scraped_data
         )

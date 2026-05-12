@@ -135,6 +135,8 @@ class ContextCompressor:
         base_retriever = SearchAPIRetriever(
             pages=self.documents
         )
+        # TODO langchian ContextCompressor 详解👇
+        # https://gemini.google.com/app/764a73c694c140c5
         contextual_retriever = ContextualCompressionRetriever(
             base_compressor=pipeline_compressor, base_retriever=base_retriever
         )

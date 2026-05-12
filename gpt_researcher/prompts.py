@@ -9,757 +9,751 @@ from .utils.enum import PromptFamily as PromptFamilyEnum
 from typing import Callable, List, Dict, Any
 
 
-## Prompt Families #############################################################
+## 提示词家族 (Prompt Families) #############################################################
 
 class PromptFamily:
-    """General purpose class for prompt formatting.
+    """用于提示词格式化的通用类。
 
-    This may be overwritten with a derived class that is model specific. The
-    methods are broken down into two groups:
+    该类可以被特定模型的派生类覆盖。其方法分为两组：
 
-    1. Prompt Generators: These follow a standard format and are correlated with
-        the ReportType enum. They should be accessed via
-        get_prompt_by_report_type
+    1. 提示词生成器 (Prompt Generators)：这些方法遵循标准格式，并与 ReportType 枚举相关联。
+       应通过 get_prompt_by_report_type 来访问它们。
 
-    2. Prompt Methods: These are situation-specific methods that do not have a
-        standard signature and are accessed directly in the agent code.
+    2. 提示词方法 (Prompt Methods)：这些是针对特定情况的方法，没有标准签名，直接在智能体(agent)代码中调用。
 
-    All derived classes must retain the same set of method names, but may
-    override individual methods.
+    所有派生类必须保留相同的方法名称集，但可以覆盖单个方法。
     """
 
     def __init__(self, config: Config):
-        """Initialize with a config instance. This may be used by derived
-        classes to select the correct prompting based on configured models and/
-        or providers
+        """使用 config 实例进行初始化。派生类可以使用它来根据配置的模型
+        和/或提供商选择正确的提示词。
         """
         self.cfg = config
 
-    # MCP-specific prompts
+    # MCP 专用提示词
     @staticmethod
     def generate_mcp_tool_selection_prompt(query: str, tools_info: List[Dict], max_tools: int = 3) -> str:
         """
-        Generate prompt for LLM-based MCP tool selection.
-        
+        生成基于 LLM 的 MCP 工具选择的提示词。
+
         Args:
-            query: The research query
-            tools_info: List of available tools with their metadata
-            max_tools: Maximum number of tools to select
-            
+            query: 研究查询
+            tools_info: 可用工具及其元数据的列表
+            max_tools: 要选择的最大工具数
+
         Returns:
-            str: The tool selection prompt
+            str: 工具选择提示词
         """
         import json
-        
-        return f"""You are a research assistant helping to select the most relevant tools for a research query.
 
-RESEARCH QUERY: "{query}"
+        return f"""你是一名研究助手，正在协助为一项研究查询选择最相关的工具。
 
-AVAILABLE TOOLS:
-{json.dumps(tools_info, indent=2)}
+研究查询："{query}"
 
-TASK: Analyze the tools and select EXACTLY {max_tools} tools that are most relevant for researching the given query.
+可用工具：
+{json.dumps(tools_info, indent=2, ensure_ascii=False)}
 
-SELECTION CRITERIA:
-- Choose tools that can provide information, data, or insights related to the query
-- Prioritize tools that can search, retrieve, or access relevant content
-- Consider tools that complement each other (e.g., different data sources)
-- Exclude tools that are clearly unrelated to the research topic
+任务：分析这些工具，并选择正好 {max_tools} 个与研究给定查询最相关的工具。
 
-Return a JSON object with this exact format:
+选择标准：
+- 选择能够提供与查询相关的信息、数据或见解的工具
+- 优先选择能够搜索、检索或访问相关内容的工具
+- 考虑相互补充的工具（例如，不同的数据源）
+- 排除明显与研究主题无关的工具
+
+返回一个具有以下精确格式的 JSON 对象：
 {{
   "selected_tools": [
     {{
       "index": 0,
       "name": "tool_name",
       "relevance_score": 9,
-      "reason": "Detailed explanation of why this tool is relevant"
+      "reason": "关于为什么此工具相关的详细解释"
     }}
   ],
-  "selection_reasoning": "Overall explanation of the selection strategy"
+  "selection_reasoning": "关于整体选择策略的解释"
 }}
 
-Select exactly {max_tools} tools, ranked by relevance to the research query.
+请准确选择 {max_tools} 个工具，并按其与研究查询的相关性进行排序。
 """
 
     @staticmethod
     def generate_mcp_research_prompt(query: str, selected_tools: List) -> str:
         """
-        Generate prompt for MCP research execution with selected tools.
-        
+        生成使用所选工具执行 MCP 研究的提示词。
+
         Args:
-            query: The research query
-            selected_tools: List of selected MCP tools
-            
+            query: 研究查询
+            selected_tools: 所选 MCP 工具的列表
+
         Returns:
-            str: The research execution prompt
+            str: 研究执行提示词
         """
-        # Handle cases where selected_tools might be strings or objects with .name attribute
+        # 处理 selected_tools 可能是字符串或具有 .name 属性的对象的情况
         tool_names = []
         for tool in selected_tools:
             if hasattr(tool, 'name'):
                 tool_names.append(tool.name)
             else:
                 tool_names.append(str(tool))
-        
-        return f"""You are a research assistant with access to specialized tools. Your task is to research the following query and provide comprehensive, accurate information.
 
-RESEARCH QUERY: "{query}"
+        return f"""你是一名拥有专用工具访问权限的研究助手。你的任务是研究以下查询，并提供全面、准确的信息。
 
-INSTRUCTIONS:
-1. Use the available tools to gather relevant information about the query
-2. Call multiple tools if needed to get comprehensive coverage
-3. If a tool call fails or returns empty results, try alternative approaches
-4. Synthesize information from multiple sources when possible
-5. Focus on factual, relevant information that directly addresses the query
+研究查询："{query}"
 
-AVAILABLE TOOLS: {tool_names}
+说明：
+1. 使用可用工具收集有关查询的相关信息。
+2. 如果需要，调用多个工具以获得全面的覆盖。
+3. 如果工具调用失败或返回空结果，请尝试替代方法。
+4. 尽可能综合来自多个来源的信息。
+5. 专注于直接解决查询的、相关且基于事实的信息。
 
-Please conduct thorough research and provide your findings. Use the tools strategically to gather the most relevant and comprehensive information."""
+可用工具：{tool_names}
 
-    # Image generation prompts
+请进行彻底的研究并提供你的发现。战略性地使用这些工具，以收集最相关和最全面的信息。"""
+
+    # 图像生成提示词
     @staticmethod
     def generate_image_analysis_prompt(
-        query: str,
-        sections: List[Dict[str, Any]],
-        max_images: int = 3,
+            query: str,
+            sections: List[Dict[str, Any]],
+            max_images: int = 3,
     ) -> str:
-        """Generate prompt for analyzing which report sections need images.
-        
+        """生成提示词，用于分析哪些报告章节需要图像。
+
         Args:
-            query: The research query.
-            sections: List of report sections with header and content.
-            max_images: Maximum number of images to suggest.
-            
+            query: 研究查询。
+            sections: 包含标题和内容的报告章节列表。
+            max_images: 建议的最大图像数。
+
         Returns:
-            str: The analysis prompt.
+            str: 分析提示词。
         """
         sections_text = "\n\n".join([
-            f"### Section {i+1}: {s['header']}\n{s['content'][:500]}..."
+            f"### 第 {i + 1} 节：{s['header']}\n{s['content'][:500]}..."
             for i, s in enumerate(sections)
         ])
-        
-        return f"""Analyze the following research report sections and identify which {max_images} sections would benefit MOST from a visual illustration or diagram.
 
-RESEARCH TOPIC: {query}
+        return f"""分析以下研究报告的章节，并确定哪 {max_images} 个章节最能从视觉插图或图表中受益。
 
-REPORT SECTIONS:
+研究主题：{query}
+
+报告章节：
 {sections_text}
 
-For each recommended section, provide:
-1. The section number (1-indexed)
-2. A specific, detailed image prompt that would create an informative illustration
-3. A brief explanation of why this section benefits from visualization
+对于每个建议的章节，请提供：
+1. 章节编号（从 1 开始索引）
+2. 一个具体、详细的图像提示词，用于创建信息丰富的插图
+3. 简要解释为什么该章节受益于可视化
 
-IMPORTANT GUIDELINES:
-- Choose sections where visual representation would genuinely aid understanding
-- Focus on concepts, processes, comparisons, data flows, or statistics that are inherently visual
-- Avoid sections that are purely textual analysis, introductions, or conclusions
-- The image prompt should be specific enough to generate a relevant, professional illustration
-- Images should be informative and educational, not decorative
-- Consider diagrams, flowcharts, comparison charts, or conceptual illustrations
+重要准则：
+- 选择那些通过视觉表现能真正有助于理解的章节
+- 关注本质上适合视觉展示的概念、过程、比较、数据流或统计数据
+- 避免纯文本分析、引言或结论的章节
+- 图像提示词必须足够具体，以生成相关的专业插图
+- 图像应当具有信息量和教育意义，而非纯粹装饰
+- 考虑使用图表、流程图、对比图或概念插图
 
-Respond in JSON format:
+以 JSON 格式回复：
 {{
     "suggestions": [
         {{
             "section_number": 1,
-            "section_header": "Section Title",
-            "image_prompt": "Detailed prompt for generating an informative illustration...",
+            "section_header": "章节标题",
+            "image_prompt": "用于生成信息丰富的插图的详细提示词...",
             "image_type": "diagram|flowchart|comparison|concept|data_visualization",
-            "reason": "Why this section benefits from visualization"
+            "reason": "为什么该章节能从可视化中受益"
         }}
     ]
 }}
 
-Return ONLY the JSON, no additional text."""
+仅返回 JSON 内容，不要有任何其他附加文本。"""
 
     @staticmethod
     def generate_image_prompt_enhancement(
-        base_prompt: str,
-        section_content: str,
-        research_topic: str,
+            base_prompt: str,
+            section_content: str,
+            research_topic: str,
     ) -> str:
-        """Enhance an image prompt with context for better generation.
-        
+        """为图像提示词增加上下文，以获得更好的生成效果。
+
         Args:
-            base_prompt: The base image generation prompt.
-            section_content: Content from the report section.
-            research_topic: The main research topic.
-            
+            base_prompt: 基础图像生成提示词。
+            section_content: 报告章节的内容。
+            research_topic: 主要研究主题。
+
         Returns:
-            str: Enhanced image prompt.
+            str: 增强后的图像提示词。
         """
-        return f"""Create a professional, informative illustration for a research report.
+        return f"""为一份研究报告创建一张专业、信息丰富的插图。
 
-RESEARCH TOPIC: {research_topic}
+研究主题：{research_topic}
 
-IMAGE DESCRIPTION: {base_prompt}
+图像描述：{base_prompt}
 
-CONTEXT FROM REPORT:
+来自报告的上下文：
 {section_content[:800]}
 
-STYLE REQUIREMENTS:
-- Professional and clean design suitable for academic/business reports
-- Clear, easy-to-understand visual elements
-- Modern, minimalist aesthetic
-- Use a professional color palette (blues, teals, grays)
-- Avoid excessive text in the image
-- High contrast for readability
-- If showing data or comparisons, use clear labels and legends
-- Suitable for both digital viewing and printing"""
+风格要求：
+- 适合学术/商业报告的专业、整洁的设计
+- 清晰、易于理解的视觉元素
+- 现代、极简的美学风格
+- 使用专业的调色板（蓝色、青色、灰色）
+- 避免图像中出现过多文字
+- 高对比度以提高可读性
+- 如果展示数据或比较，请使用清晰的标签和图例
+- 既适合数字屏幕观看，也适合打印"""
 
     @staticmethod
     def generate_search_queries_prompt(
-        question: str,
-        parent_query: str,
-        report_type: str,
-        max_iterations: int = 3,
-        context: List[Dict[str, Any]] = [],
+            question: str,
+            parent_query: str,
+            report_type: str,
+            max_iterations: int = 3,
+            context: List[Dict[str, Any]] = [],
     ):
-        """Generates the search queries prompt for the given question.
+        """为给定问题生成搜索查询的提示词。
         Args:
-            question (str): The question to generate the search queries prompt for
-            parent_query (str): The main question (only relevant for detailed reports)
-            report_type (str): The report type
-            max_iterations (int): The maximum number of search queries to generate
-            context (str): Context for better understanding of the task with realtime web information
+            question (str): 需要生成搜索查询提示词的问题
+            parent_query (str): 主问题（仅与详细报告相关）
+            report_type (str): 报告类型
+            max_iterations (int): 要生成的最大搜索查询数量
+            context (str): 通过实时网络信息更好地理解任务的上下文
 
-        Returns: str: The search queries prompt for the given question
+        Returns: str: 给定问题的搜索查询提示词
         """
 
         if (
-            report_type == ReportType.DetailedReport.value
-            or report_type == ReportType.SubtopicReport.value
+                report_type == ReportType.DetailedReport.value
+                or report_type == ReportType.SubtopicReport.value
         ):
             task = f"{parent_query} - {question}"
         else:
             task = question
 
         context_prompt = f"""
-You are a seasoned research assistant tasked with generating search queries to find relevant information for the following task: "{task}".
-Context: {context}
+你是一位经验丰富的研究助手，负责生成搜索查询，以寻找与以下任务相关的在线信息："{task}"。
+上下文信息：{context}
 
-Use this context to inform and refine your search queries. The context provides real-time web information that can help you generate more specific and relevant queries. Consider any current events, recent developments, or specific details mentioned in the context that could enhance the search queries.
+利用上述上下文来告知和完善你的搜索查询。上下文提供了实时网络信息，能帮助你生成更具体、相关的查询。考虑上下文中提到的任何时事、最新进展或具体细节，从而增强搜索查询的质量。
 """ if context else ""
 
-        dynamic_example = ", ".join([f'"query {i+1}"' for i in range(max_iterations)])
+        dynamic_example = ", ".join([f'"query {i + 1}"' for i in range(max_iterations)])
 
-        return f"""Write {max_iterations} google search queries to search online that form an objective opinion from the following task: "{task}"
+        return f"""编写 {max_iterations} 个针对以下任务的 Google 搜索查询语句，通过在线搜索形成客观意见："{task}"
 
-Assume the current date is {datetime.now(timezone.utc).strftime('%B %d, %Y')} if required.
+如果需要，请假设当前日期为 {datetime.now(timezone.utc).strftime('%Y年%m月%d日')}。
 
 {context_prompt}
-You must respond with a list of strings in the following format: [{dynamic_example}].
-The response should contain ONLY the list.
+你必须以字符串列表的形式回复，格式如下：[{dynamic_example}]。
+回复必须且只能包含该列表。
 """
 
     @staticmethod
     def generate_report_prompt(
-        question: str,
-        context,
-        report_source: str,
-        report_format="apa",
-        total_words=1000,
-        tone=None,
-        language="english",
+            question: str,
+            context,
+            report_source: str,
+            report_format="apa",
+            total_words=1000,
+            tone=None,
+            language="chinese",
     ):
-        """Generates the report prompt for the given question and research summary.
-        Args: question (str): The question to generate the report prompt for
-                research_summary (str): The research summary to generate the report prompt for
-        Returns: str: The report prompt for the given question and research summary
+        """为给定问题和研究摘要生成报告的提示词。
+        Args: question (str): 需要生成报告提示词的问题
+                research_summary (str): 需要生成报告提示词的研究摘要
+        Returns: str: 给定问题和研究摘要的报告提示词
         """
 
         reference_prompt = ""
         if report_source == ReportSource.Web.value:
             reference_prompt = f"""
-You MUST write all used source urls at the end of the report as references, and make sure to not add duplicated sources, but only one reference for each.
-Every url should be hyperlinked: [url website](url)
-Additionally, you MUST include hyperlinks to the relevant URLs wherever they are referenced in the report:
+你必须在报告末尾将所有使用过的来源 URL 作为参考文献列出，并确保不添加重复的来源，每个来源仅提供一个引用。
+每个 URL 都应添加超链接格式：[网站名称](url)
+此外，只要报告中引用了相关的 URL，你必须在对应位置包含该超链接：
 
-eg: Author, A. A. (Year, Month Date). Title of web page. Website Name. [url website](url)
+例如：作者, A. A. (年份, 月份 日期). 网页标题. 网站名称. [网站名称](url)
 """
         else:
             reference_prompt = f"""
-You MUST write all used source document names at the end of the report as references, and make sure to not add duplicated sources, but only one reference for each."
+你必须在报告末尾将所有使用过的源文档名称作为参考文献列出，并确保不添加重复的来源，每个来源仅提供一个引用。"
 """
 
-        tone_prompt = f"Write the report in a {tone.value} tone." if tone else ""
+        tone_prompt = f"以 {tone.value} 的语气编写报告。" if tone else ""
 
         return f"""
-Information: "{context}"
+信息："{context}"
 ---
-Using the above information, answer the following query or task: "{question}" in a detailed report --
-The report should focus on the answer to the query, should be well structured, informative,
-in-depth, and comprehensive, with facts and numbers if available and at least {total_words} words.
-You should strive to write the report as long as you can using all relevant and necessary information provided.
+使用上述信息，在详细报告中回答以下查询或任务："{question}" ——
+报告应侧重于对查询的解答，要求结构良好、信息丰富、深入且全面，如果可能的话应包含事实和数字，至少包含 {total_words} 个字。
+你应该尽可能地使用所提供的所有相关且必要的信息，把报告写得越长越好。
 
-Please follow all of the following guidelines in your report:
-- You MUST determine your own concrete and valid opinion based on the given information. Do NOT defer to general and meaningless conclusions.
-- You MUST write the report with markdown syntax and {report_format} format.
-- Structure your report with clear markdown headers: use # for the main title, ## for major sections, and ### for subsections.
-- Use markdown tables when presenting structured data or comparisons to enhance readability.
-- You MUST prioritize the relevance, reliability, and significance of the sources you use. Choose trusted sources over less reliable ones.
-- You must also prioritize new articles over older articles if the source can be trusted.
-- You MUST NOT include a table of contents, but DO include proper markdown headers (# ## ###) to structure your report clearly.
-- Use in-text citation references in {report_format} format and make it with markdown hyperlink placed at the end of the sentence or paragraph that references them like this: ([in-text citation](url)).
-- Don't forget to add a reference list at the end of the report in {report_format} format and full url links without hyperlinks.
+请在你的报告中遵循以下所有指导原则：
+- 你必须基于所提供的信息形成自己明确且有效的观点。不要得出泛泛而谈或毫无意义的结论。
+- 你必须使用 Markdown 语法和 {report_format} 格式撰写报告。
+- 用清晰的 Markdown 标题构建报告结构：使用 # 作为主标题，## 作为主要章节，### 作为子章节。
+- 在展示结构化数据或进行比较时，使用 Markdown 表格以增强可读性。
+- 你必须优先考虑所用来源的相关性、可靠性和重要性。选择可信的来源，而不是不可靠的来源。
+- 如果来源可信，你还必须优先采用新文章而非旧文章。
+- 你绝对不能包含目录，但必须使用适当的 Markdown 标题 (# ## ###) 清晰地构建你的报告。
+- 使用 {report_format} 格式的文中引用，并以 Markdown 超链接的形式放置在引用它们的句子或段落的末尾，如下所示：([文中引用](url))。
+- 别忘了在报告末尾添加 {report_format} 格式的参考文献列表，提供完整的 URL 链接，不要隐藏在超链接文本中。
 - {reference_prompt}
 - {tone_prompt}
-You MUST write the report in the following language: {language}.
-Please do your best, this is very important to my career.
-Assume that the current date is {date.today()}.
+你必须使用以下语言编写报告：{language}。
+请全力以赴，这对我的职业生涯非常重要。
+假设当前日期是 {date.today()}。
 """
 
     @staticmethod
     def curate_sources(query, sources, max_results=10):
-        return f"""Your goal is to evaluate and curate the provided scraped content for the research task: "{query}"
-    while prioritizing the inclusion of relevant and high-quality information, especially sources containing statistics, numbers, or concrete data.
+        return f"""你的目标是评估和精选针对研究任务："{query}" 所提供的网页抓取内容。
+    同时，优先保留相关且高质量的信息，尤其是包含统计数据、数字或具体数据的来源。
 
-The final curated list will be used as context for creating a research report, so prioritize:
-- Retaining as much original information as possible, with extra emphasis on sources featuring quantitative data or unique insights
-- Including a wide range of perspectives and insights
-- Filtering out only clearly irrelevant or unusable content
+最终策划的列表将用作撰写研究报告的上下文，因此请优先考虑：
+- 尽可能保留最多的原始信息，并特别重视包含定量数据或独特见解的来源
+- 涵盖广泛的视角和见解
+- 仅过滤掉明显无关或完全无法使用的内容
 
-EVALUATION GUIDELINES:
-1. Assess each source based on:
-   - Relevance: Include sources directly or partially connected to the research query. Err on the side of inclusion.
-   - Credibility: Favor authoritative sources but retain others unless clearly untrustworthy.
-   - Currency: Prefer recent information unless older data is essential or valuable.
-   - Objectivity: Retain sources with bias if they provide a unique or complementary perspective.
-   - Quantitative Value: Give higher priority to sources with statistics, numbers, or other concrete data.
-2. Source Selection:
-   - Include as many relevant sources as possible, up to {max_results}, focusing on broad coverage and diversity.
-   - Prioritize sources with statistics, numerical data, or verifiable facts.
-   - Overlapping content is acceptable if it adds depth, especially when data is involved.
-   - Exclude sources only if they are entirely irrelevant, severely outdated, or unusable due to poor content quality.
-3. Content Retention:
-   - DO NOT rewrite, summarize, or condense any source content.
-   - Retain all usable information, cleaning up only clear garbage or formatting issues.
-   - Keep marginally relevant or incomplete sources if they contain valuable data or insights.
+评估准则：
+1. 评估每个来源的标准：
+   - 相关性：包含直接或部分与研究查询相关的来源。宁可多留，不可错删。
+   - 可信度：倾向于权威来源，但除非明显不可信，否则也保留其他来源。
+   - 时效性：优先考虑最新信息，除非旧数据是必不可少或具有价值的。
+   - 客观性：如果带有偏见的来源提供了独特或互补的视角，也应保留。
+   - 定量价值：给予包含统计数据、数字或其他具体数据的来源更高的优先级。
+2. 来源选择：
+   - 包含尽可能多相关的来源，最多 {max_results} 个，侧重于覆盖面和多样性。
+   - 优先选择含有统计数据、数值数据或可验证事实的来源。
+   - 内容有重叠是可以接受的，只要它能增加深度，特别是在涉及数据时。
+   - 仅当来源完全无关、严重过时或因内容质量差而无法使用时，才将其排除。
+3. 内容保留：
+   - 绝对不要重写、总结或浓缩任何来源的内容。
+   - 保留所有可用信息，仅清理明显的乱码或排版格式问题。
+   - 如果边缘相关或不完整的来源包含有价值的数据或见解，请保留它们。
 
-SOURCES LIST TO EVALUATE:
+待评估的来源列表：
 {sources}
 
-You MUST return your response in the EXACT sources JSON list format as the original sources.
-The response MUST not contain any markdown format or additional text (like ```json), just the JSON list!
+你必须以原始来源完全相同的 JSON 列表格式返回响应。
+响应不能包含任何 markdown 格式或附加文本（如 ```json），只能是 JSON 列表！
 """
 
     @staticmethod
     def generate_resource_report_prompt(
-        question, context, report_source: str, report_format="apa", tone=None, total_words=1000, language="english"
+            question, context, report_source: str, report_format="apa", tone=None, total_words=1000, language="chinese"
     ):
-        """Generates the resource report prompt for the given question and research summary.
+        """为给定问题和研究摘要生成资源报告的提示词。
 
         Args:
-            question (str): The question to generate the resource report prompt for.
-            context (str): The research summary to generate the resource report prompt for.
+            question (str): 需要生成资源报告提示词的问题。
+            context (str): 需要生成资源报告提示词的研究摘要。
 
         Returns:
-            str: The resource report prompt for the given question and research summary.
+            str: 给定问题和研究摘要的资源报告提示词。
         """
 
         reference_prompt = ""
         if report_source == ReportSource.Web.value:
             reference_prompt = f"""
-            You MUST include all relevant source urls.
-            Every url should be hyperlinked: [url website](url)
+            你必须包含所有相关的来源 URL。
+            每个 URL 都应添加超链接：[网站名称](url)
             """
         else:
             reference_prompt = f"""
-            You MUST write all used source document names at the end of the report as references, and make sure to not add duplicated sources, but only one reference for each."
+            你必须在报告末尾将所有使用过的源文档名称作为参考文献列出，并确保不添加重复的来源，每个来源仅提供一个引用。"
         """
 
         return (
-            f'"""{context}"""\n\nBased on the above information, generate a bibliography recommendation report for the following'
-            f' question or topic: "{question}". The report should provide a detailed analysis of each recommended resource,'
-            " explaining how each source can contribute to finding answers to the research question.\n"
-            "Focus on the relevance, reliability, and significance of each source.\n"
-            "Ensure that the report is well-structured, informative, in-depth, and follows Markdown syntax.\n"
-            "Use markdown tables and other formatting features when appropriate to organize and present information clearly.\n"
-            "Include relevant facts, figures, and numbers whenever available.\n"
-            f"The report should have a minimum length of {total_words} words.\n"
-            f"You MUST write the report in the following language: {language}.\n"
-            "You MUST include all relevant source urls."
-            "Every url should be hyperlinked: [url website](url)"
+            f'"""{context}"""\n\n基于上述信息，生成一份针对以下问题或主题的文献推荐报告："{question}"。'
+            "该报告应对每项推荐的资源进行详细分析，解释每个来源如何有助于解答该研究问题。\n"
+            "重点关注每个来源的相关性、可靠性和重要性。\n"
+            "确保报告结构良好、信息丰富、有深度，并遵循 Markdown 语法。\n"
+            "适当时使用 Markdown 表格和其他格式功能，以清晰地组织和展示信息。\n"
+            "只要有可能，就应纳入相关事实、图表和数字。\n"
+            f"报告的最短长度应为 {total_words} 个字。\n"
+            f"你必须使用以下语言撰写报告：{language}。\n"
+            "你必须包含所有相关的来源 URL。\n"
+            "每个 URL 都应添加超链接：[网站名称](url)\n"
             f"{reference_prompt}"
         )
 
     @staticmethod
     def generate_custom_report_prompt(
-        query_prompt, context, report_source: str, report_format="apa", tone=None, total_words=1000, language: str = "english"
+            query_prompt, context, report_source: str, report_format="apa", tone=None, total_words=1000,
+            language: str = "chinese"
     ):
         return f'"{context}"\n\n{query_prompt}'
 
     @staticmethod
     def generate_outline_report_prompt(
-        question, context, report_source: str, report_format="apa", tone=None,  total_words=1000, language: str = "english"
+            question, context, report_source: str, report_format="apa", tone=None, total_words=1000,
+            language: str = "chinese"
     ):
-        """Generates the outline report prompt for the given question and research summary.
-        Args: question (str): The question to generate the outline report prompt for
-                research_summary (str): The research summary to generate the outline report prompt for
-        Returns: str: The outline report prompt for the given question and research summary
+        """为给定问题和研究摘要生成大纲报告的提示词。
+        Args: question (str): 需要生成大纲报告提示词的问题
+                research_summary (str): 需要生成大纲报告提示词的研究摘要
+        Returns: str: 给定问题和研究摘要的大纲报告提示词
         """
 
         return (
-            f'"""{context}""" Using the above information, generate an outline for a research report in Markdown syntax'
-            f' for the following question or topic: "{question}". The outline should provide a well-structured framework'
-            " for the research report, including the main sections, subsections, and key points to be covered."
-            f" The research report should be detailed, informative, in-depth, and a minimum of {total_words} words."
-            " Use appropriate Markdown syntax to format the outline and ensure readability."
-            " Consider using markdown tables and other formatting features where they would enhance the presentation of information."
+            f'"""{context}""" 使用上述信息，生成一份针对以下问题或主题的 Markdown 语法形式的研究报告大纲："{question}"。'
+            "大纲应为研究报告提供一个结构良好的框架，包括主要章节、子章节以及要涵盖的关键点。"
+            f"该研究报告要求详细、信息丰富、深入，且至少 {total_words} 字。"
+            "使用适当的 Markdown 语法来格式化大纲，并确保可读性。"
+            "考虑使用 Markdown 表格和其他格式功能，以增强信息的表现力。"
         )
 
     @staticmethod
     def generate_deep_research_prompt(
-        question: str,
-        context: str,
-        report_source: str,
-        report_format="apa",
-        tone=None,
-        total_words=2000,
-        language: str = "english"
+            question: str,
+            context: str,
+            report_source: str,
+            report_format="apa",
+            tone=None,
+            total_words=2000,
+            language: str = "chinese"
     ):
-        """Generates the deep research report prompt, specialized for handling hierarchical research results.
+        """生成深度研究报告的提示词，专门处理分层的研究结果。
         Args:
-            question (str): The research question
-            context (str): The research context containing learnings with citations
-            report_source (str): Source of the research (web, etc.)
-            report_format (str): Report formatting style
-            tone: The tone to use in writing
-            total_words (int): Minimum word count
-            language (str): Output language
+            question (str): 研究问题
+            context (str): 包含带引用的学习内容的研究上下文
+            report_source (str): 研究来源 (如 web 等)
+            report_format (str): 报告格式化风格
+            tone: 写作时的语气
+            total_words (int): 最小字数
+            language (str): 输出语言
         Returns:
-            str: The deep research report prompt
+            str: 深度研究报告提示词
         """
         reference_prompt = ""
         if report_source == ReportSource.Web.value:
             reference_prompt = f"""
-You MUST write all used source urls at the end of the report as references, and make sure to not add duplicated sources, but only one reference for each.
-Every url should be hyperlinked: [url website](url)
-Additionally, you MUST include hyperlinks to the relevant URLs wherever they are referenced in the report:
+你必须在报告末尾将所有使用过的来源 URL 作为参考文献列出，并确保不添加重复的来源，每个来源仅提供一个引用。
+每个 URL 都应添加超链接格式：[网站名称](url)
+此外，只要报告中引用了相关的 URL，你必须在对应位置包含该超链接：
 
-eg: Author, A. A. (Year, Month Date). Title of web page. Website Name. [url website](url)
+例如：作者, A. A. (年份, 月份 日期). 网页标题. 网站名称. [网站名称](url)
 """
         else:
             reference_prompt = f"""
-You MUST write all used source document names at the end of the report as references, and make sure to not add duplicated sources, but only one reference for each."
+你必须在报告末尾将所有使用过的源文档名称作为参考文献列出，并确保不添加重复的来源，每个来源仅提供一个引用。"
 """
 
-        tone_prompt = f"Write the report in a {tone.value} tone." if tone else ""
+        tone_prompt = f"以 {tone.value} 的语气编写报告。" if tone else ""
 
         return f"""
-Using the following hierarchically researched information and citations:
+使用以下层级式研究信息和引用内容：
 
 "{context}"
 
-Write a comprehensive research report answering the query: "{question}"
+撰写一份全面的研究报告，回答此查询："{question}"
 
-The report should:
-1. Synthesize information from multiple levels of research depth
-2. Integrate findings from various research branches
-3. Present a coherent narrative that builds from foundational to advanced insights
-4. Maintain proper citation of sources throughout
-5. Be well-structured with clear sections and subsections
-6. Have a minimum length of {total_words} words
-7. Follow {report_format} format with markdown syntax
-8. Use markdown tables, lists and other formatting features when presenting comparative data, statistics, or structured information
+该报告应当：
+1. 综合来自多个研究深度层级的信息
+2. 整合不同研究分支的发现
+3. 呈现从基础到高级见解循序渐进连贯一致的叙述
+4. 贯穿全文保持适当的来源引用格式
+5. 结构良好，具有清晰的章节和子章节
+6. 至少 {total_words} 个字
+7. 采用 {report_format} 格式，遵循 Markdown 语法
+8. 在展示比较数据、统计信息或结构化信息时，使用 Markdown 表格、列表和其他格式功能
 
-Additional requirements:
-- Prioritize insights that emerged from deeper levels of research
-- Highlight connections between different research branches
-- Include relevant statistics, data, and concrete examples
-- You MUST determine your own concrete and valid opinion based on the given information. Do NOT defer to general and meaningless conclusions.
-- You MUST prioritize the relevance, reliability, and significance of the sources you use. Choose trusted sources over less reliable ones.
-- You must also prioritize new articles over older articles if the source can be trusted.
-- Use in-text citation references in {report_format} format and make it with markdown hyperlink placed at the end of the sentence or paragraph that references them like this: ([in-text citation](url)).
+附加要求：
+- 优先突出从更深层次研究中涌现的深刻见解
+- 强调不同研究分支之间的联系
+- 包含相关的统计数据、具体数据和具体示例
+- 你必须基于提供的信息形成自己明确且有效的观点。不要得出泛泛而谈或毫无意义的结论。
+- 你必须优先考虑所用来源的相关性、可靠性和重要性。选择可信的来源，而不是不可靠的来源。
+- 如果来源可信，你还必须优先采用新文章而非旧文章。
+- 使用 {report_format} 格式的文中引用，并以 Markdown 超链接的形式放置在引用它们的句子或段落的末尾，如下所示：([文中引用](url))。
 - {tone_prompt}
-- Write in {language}
+- 请用 {language} 写作
 
 {reference_prompt}
 
-Please write a thorough, well-researched report that synthesizes all the gathered information into a cohesive whole.
-Assume the current date is {datetime.now(timezone.utc).strftime('%B %d, %Y')}.
+请写出一份透彻的、经过充分研究的报告，将所有收集到的信息综合成一个连贯的整体。
+假设当前日期是 {datetime.now(timezone.utc).strftime('%Y年%m月%d日')}。
 """
 
     @staticmethod
     def auto_agent_instructions():
         return """
-This task involves researching a given topic, regardless of its complexity or the availability of a definitive answer. The research is conducted by a specific server, defined by its type and role, with each server requiring distinct instructions.
-Agent
-The server is determined by the field of the topic and the specific name of the server that could be utilized to research the topic provided. Agents are categorized by their area of expertise, and each server type is associated with a corresponding emoji.
+这项任务涉及研究给定主题，无论其复杂性如何，或是否存在明确答案。研究由特定的服务器进行，具体取决于其类型和角色，每台服务器都需要不同的指令。
+Agent（智能体）
+服务器是根据主题的领域和可用于研究提供主题的服务器的具体名称来确定的。代理按其专业领域进行分类，并且每种服务器类型都有关联的表情符号。
 
-examples:
-task: "should I invest in apple stocks?"
-response:
+示例：
+任务："我应该投资苹果股票吗？"
+回复：
 {
-    "server": "💰 Finance Agent",
-    "agent_role_prompt: "You are a seasoned finance analyst AI assistant. Your primary goal is to compose comprehensive, astute, impartial, and methodically arranged financial reports based on provided data and trends."
+    "server": "💰 金融智能体",
+    "agent_role_prompt": "你是一位经验丰富的金融分析师 AI 助手。你的主要目标是基于提供的数据和趋势，撰写全面、敏锐、公正且系统化编排的财务报告。"
 }
-task: "could reselling sneakers become profitable?"
-response:
+任务："倒卖运动鞋会变得有利可图吗？"
+回复：
 {
-    "server":  "📈 Business Analyst Agent",
-    "agent_role_prompt": "You are an experienced AI business analyst assistant. Your main objective is to produce comprehensive, insightful, impartial, and systematically structured business reports based on provided business data, market trends, and strategic analysis."
+    "server":  "📈 商业分析师智能体",
+    "agent_role_prompt": "你是一位经验丰富的 AI 商业分析师助手。你的主要目标是根据提供的商业数据、市场趋势和战略分析，生成全面、深刻、公正且结构系统的商业报告。"
 }
-task: "what are the most interesting sites in Tel Aviv?"
-response:
+任务："特拉维夫最有趣的景点有哪些？"
+回复：
 {
-    "server":  "🌍 Travel Agent",
-    "agent_role_prompt": "You are a world-travelled AI tour guide assistant. Your main purpose is to draft engaging, insightful, unbiased, and well-structured travel reports on given locations, including history, attractions, and cultural insights."
+    "server":  "🌍 旅游智能体",
+    "agent_role_prompt": "你是一位周游世界的 AI 导游助手。你的主要目的是针对给定地点起草引人入胜、有见地、公正且结构良好的旅游报告，内容包括历史、景点和文化见解。"
 }
 """
 
     @staticmethod
     def generate_summary_prompt(query, data):
-        """Generates the summary prompt for the given question and text.
-        Args: question (str): The question to generate the summary prompt for
-                text (str): The text to generate the summary prompt for
-        Returns: str: The summary prompt for the given question and text
+        """为给定问题和文本生成摘要提示词。
+        Args: question (str): 需要生成摘要提示词的问题
+                text (str): 需要生成摘要提示词的文本
+        Returns: str: 给定问题和文本的摘要提示词
         """
 
         return (
-            f'{data}\n Using the above text, summarize it based on the following task or query: "{query}".\n If the '
-            f"query cannot be answered using the text, YOU MUST summarize the text in short.\n Include all factual "
-            f"information such as numbers, stats, quotes, etc if available. "
+            f'{data}\n 使用上述文本，根据以下任务或查询对其进行总结："{query}"。\n'
+            f"如果无法使用文本回答该查询，你必须对文本进行简短的概括总结。\n"
+            f"如果可能的话，请包含所有的事实信息，例如数字、统计数据、引言等。"
         )
 
     @staticmethod
     def generate_quick_summary_prompt(query: str, context: str) -> str:
-        """Generates the quick summary prompt for the given question and context.
+        """为给定问题和上下文生成快速摘要提示词。
         Args:
-            query (str): The query to generate the summary for
-            context (str): The search results to summarize
+            query (str): 需要生成摘要的查询
+            context (str): 需要总结的搜索结果
         Returns:
-            str: The quick summary prompt
+            str: 快速摘要提示词
         """
         return f"""
-Synthesize a comprehensive answer to the following query based ONLY on the provided search results.
-Query: "{query}"
+仅根据所提供的搜索结果，综合出对以下查询的全面回答。
+查询："{query}"
 
-Search Results:
+搜索结果：
 {context}
 
-Instructions:
-1. Provide a single, continuous narrative summary.
-2. Cite your sources using numbers [1], [2], etc., corresponding to the search results.
-3. If the results are insufficient to answer the query, state that clearly.
-4. Focus on accuracy and relevance.
+说明：
+1. 提供一段连续、完整的叙述性总结。
+2. 使用数字 [1]、[2] 等引用你的来源，这些数字对应于搜索结果。
+3. 如果结果不足以回答查询，请明确说明。
+4. 关注准确性和相关性。
 """
 
     @staticmethod
     def pretty_print_docs(docs: list[Document], top_n: int | None = None) -> str:
-        """Compress the list of documents into a context string"""
-        return f"\n".join(f"Source: {d.metadata.get('source')}\n"
-                          f"Title: {d.metadata.get('title')}\n"
-                          f"Content: {d.page_content}\n"
+        """将文档列表压缩为上下文格式的字符串"""
+        return f"\n".join(f"来源：{d.metadata.get('source')}\n"
+                          f"标题：{d.metadata.get('title')}\n"
+                          f"内容：{d.page_content}\n"
                           for i, d in enumerate(docs)
                           if top_n is None or i < top_n)
 
     @staticmethod
     def join_local_web_documents(docs_context: str, web_context: str) -> str:
-        """Joins local web documents with context scraped from the internet"""
-        return f"Context from local documents: {docs_context}\n\nContext from web sources: {web_context}"
+        """将本地 Web 文档与从互联网抓取的上下文连接起来"""
+        return f"来自本地文档的上下文：{docs_context}\n\n来自网络来源的上下文：{web_context}"
 
     ################################################################################################
 
-    # DETAILED REPORT PROMPTS
+    # 详细报告提示词 (DETAILED REPORT PROMPTS)
 
     @staticmethod
     def generate_subtopics_prompt() -> str:
         return """
-Provided the main topic:
+提供主要主题：
 
 {task}
 
-and research data:
+以及研究数据：
 
 {data}
 
-- Construct a list of subtopics which indicate the headers of a report document to be generated on the task.
-- These are a possible list of subtopics : {subtopics}.
-- There should NOT be any duplicate subtopics.
-- Limit the number of subtopics to a maximum of {max_subtopics}
-- Finally order the subtopics by their tasks, in a relevant and meaningful order which is presentable in a detailed report
+- 构建一个子主题列表，该列表反映要生成的针对该任务的报告文档中的各个标题。
+- 这些是可能的子主题列表：{subtopics}。
+- 不应有任何重复的子主题。
+- 将子主题数量限制在最多 {max_subtopics} 个。
+- 最后，按照它们的任务顺序对子主题进行排列，顺序应当相关且有意义，能够呈现在详细的报告中。
 
-"IMPORTANT!":
-- Every subtopic MUST be relevant to the main topic and provided research data ONLY!
+“重要提示！”：
+- 每个子主题绝对必须仅与主要主题和提供的研究数据相关！
 
 {format_instructions}
 """
 
     @staticmethod
     def generate_subtopic_report_prompt(
-        current_subtopic,
-        existing_headers: list,
-        relevant_written_contents: list,
-        main_topic: str,
-        context,
-        report_format: str = "apa",
-        max_subsections=5,
-        total_words=800,
-        tone: Tone = Tone.Objective,
-        language: str = "english",
+            current_subtopic,
+            existing_headers: list,
+            relevant_written_contents: list,
+            main_topic: str,
+            context,
+            report_format: str = "apa",
+            max_subsections=5,
+            total_words=800,
+            tone: Tone = Tone.Objective,
+            language: str = "chinese",
     ) -> str:
         return f"""
-Context:
+上下文：
 "{context}"
 
-Main Topic and Subtopic:
-Using the latest information available, construct a detailed report on the subtopic: {current_subtopic} under the main topic: {main_topic}.
-You must limit the number of subsections to a maximum of {max_subsections}.
+主要主题与子主题：
+使用现有的最新信息，在主要主题：{main_topic} 的范畴下，构建一份关于子主题：{current_subtopic} 的详细报告。
+你必须将子章节的数量限制在最多 {max_subsections} 个。
 
-Content Focus:
-- The report should focus on answering the question, be well-structured, informative, in-depth, and include facts and numbers if available.
-- Use markdown syntax and follow the {report_format.upper()} format.
-- When presenting data, comparisons, or structured information, use markdown tables to enhance readability.
+内容重点：
+- 报告应侧重于回答该问题，结构合理、信息丰富、深入，如有事实和数字应予以包含。
+- 使用 Markdown 语法并遵循 {report_format.upper()} 格式。
+- 在展示数据、比较或结构化信息时，使用 Markdown 表格以增强可读性。
 
-IMPORTANT:Content and Sections Uniqueness:
-- This part of the instructions is crucial to ensure the content is unique and does not overlap with existing reports.
-- Carefully review the existing headers and existing written contents provided below before writing any new subsections.
-- Prevent any content that is already covered in the existing written contents.
-- Do not use any of the existing headers as the new subsection headers.
-- Do not repeat any information already covered in the existing written contents or closely related variations to avoid duplicates.
-- If you have nested subsections, ensure they are unique and not covered in the existing written contents.
-- Ensure that your content is entirely new and does not overlap with any information already covered in the previous subtopic reports.
+重要提示：内容与章节的唯一性：
+- 这一部分的说明至关重要，以确保内容是独一无二的，且不与现有的报告发生重叠。
+- 在编写任何新的子章节之前，仔细审查下面提供的现有标题和现有撰写内容。
+- 杜绝生成任何在现有撰写内容中已经被覆盖过的内容。
+- 不要将任何现有标题用作新的子章节标题。
+- 不要重复在现有内容中已经涉及的信息或其高度相似的变体，以避免重复。
+- 如果有嵌套的子章节，请确保它们是独特的，且不包含在现有的内容中。
+- 确保你的内容是全新的，并且不与先前子主题报告中涵盖的任何信息重叠。
 
-"Existing Subtopic Reports":
-- Existing subtopic reports and their section headers:
+“现有的子主题报告”：
+- 现有的子主题报告及其各节标题：
 
     {existing_headers}
 
-- Existing written contents from previous subtopic reports:
+- 现有的、从之前子主题报告中撰写的内容：
 
     {relevant_written_contents}
 
-"Structure and Formatting":
-- As this sub-report will be part of a larger report, include only the main body divided into suitable subtopics without any introduction or conclusion section.
+“结构与格式”：
+- 由于这个子报告将是一份更大报告的一部分，因此仅需包含主要正文并划分成合适的子主题，不要有任何引言或结论部分。
 
-- You MUST include markdown hyperlinks to relevant source URLs wherever referenced in the report, for example:
+- 你必须在报告中提到来源 URL 时添加 Markdown 超链接，例如：
 
-    ### Section Header
+    ### 章节标题
 
-    This is a sample text ([in-text citation](url)).
+    这是一段示例文本 ([文中引用](url))。
 
-- Use H2 for the main subtopic header (##) and H3 for subsections (###).
-- Use smaller Markdown headers (e.g., H2 or H3) for content structure, avoiding the largest header (H1) as it will be used for the larger report's heading.
-- Organize your content into distinct sections that complement but do not overlap with existing reports.
-- When adding similar or identical subsections to your report, you should clearly indicate the differences between and the new content and the existing written content from previous subtopic reports. For example:
+- 使用 H2 (##) 作为主子主题标题，H3 (###) 作为子章节标题。
+- 使用较小的 Markdown 标题（例如 H2 或 H3）来构建内容结构，避免使用最大的标题 (H1)，因为 H1 将留给整体大型报告的标题使用。
+- 将你的内容划分为相互区分的各节，用于补充而非重叠现有报告。
+- 当向报告中添加相似或相同的子章节时，你应该清楚地指出新内容与先前子主题报告现有内容之间的差异。例如：
 
-    ### New header (similar to existing header)
+    ### 新标题（与现有标题类似）
 
-    While the previous section discussed [topic A], this section will explore [topic B]."
+    前面的章节讨论了 [主题 A]，而本节将探讨 [主题 B]。”
 
-"Date":
-Assume the current date is {datetime.now(timezone.utc).strftime('%B %d, %Y')} if required.
+“日期”：
+如有需要，请假设当前日期是 {datetime.now(timezone.utc).strftime('%Y年%m月%d日')}。
 
-"IMPORTANT!":
-- You MUST write the report in the following language: {language}.
-- The focus MUST be on the main topic! You MUST Leave out any information un-related to it!
-- Must NOT have any introduction, conclusion, summary or reference section.
-- You MUST use in-text citation references in {report_format.upper()} format and make it with markdown hyperlink placed at the end of the sentence or paragraph that references them like this: ([in-text citation](url)).
-- You MUST mention the difference between the existing content and the new content in the report if you are adding the similar or same subsections wherever necessary.
-- The report should have a minimum length of {total_words} words.
-- Use an {tone.value} tone throughout the report.
+“重要提示！”：
+- 你必须使用以下语言编写报告：{language}。
+- 焦点必须集中在主要主题上！你必须排除任何与其无关的信息！
+- 绝对不能有任何引言、结论、摘要或参考书目部分。
+- 你必须使用 {report_format.upper()} 格式的文中引用，并以 Markdown 超链接的形式将其置于引用它的句子或段落末尾，例如：([文中引用](url))。
+- 在添加相似或相同子章节的必要情况下，你必须在报告中提及现有内容与新内容之间的差异。
+- 报告应至少包含 {total_words} 个字。
+- 在整篇报告中保持 {tone.value} 的语调。
 
-Do NOT add a conclusion section.
+不要添加结论部分。
 """
 
     @staticmethod
     def generate_draft_titles_prompt(
-        current_subtopic: str,
-        main_topic: str,
-        context: str,
-        max_subsections: int = 5
+            current_subtopic: str,
+            main_topic: str,
+            context: str,
+            max_subsections: int = 5
     ) -> str:
         return f"""
-"Context":
+“上下文”：
 "{context}"
 
-"Main Topic and Subtopic":
-Using the latest information available, construct a draft section title headers for a detailed report on the subtopic: {current_subtopic} under the main topic: {main_topic}.
+“主要主题与子主题”：
+利用最新信息，在主要主题：{main_topic} 的基础上，为子主题：{current_subtopic} 的详细报告起草章节标题草案。
 
-"Task":
-1. Create a list of draft section title headers for the subtopic report.
-2. Each header should be concise and relevant to the subtopic.
-3. The header should't be too high level, but detailed enough to cover the main aspects of the subtopic.
-4. Use markdown syntax for the headers, using H3 (###) as H1 and H2 will be used for the larger report's heading.
-5. Ensure the headers cover main aspects of the subtopic.
+“任务”：
+1. 为该子主题报告创建一个草案章节标题列表。
+2. 每个标题应该简洁且与子主题相关。
+3. 标题不应过于宏大空泛，而需足够详细以涵盖子主题的主要方面。
+4. 采用 Markdown 语法表示标题，使用 H3 (###)，因为 H1 和 H2 将被用于更大报告的标题中。
+5. 确保标题涵盖了子主题的主要方面。
 
-"Structure and Formatting":
-Provide the draft headers in a list format using markdown syntax, for example:
+“结构与格式”：
+以 Markdown 语法的列表格式提供标题草案，例如：
 
-### Header 1
-### Header 2
-### Header 3
+### 标题 1
+### 标题 2
+### 标题 3
 
-"IMPORTANT!":
-- The focus MUST be on the main topic! You MUST Leave out any information un-related to it!
-- Must NOT have any introduction, conclusion, summary or reference section.
-- Focus solely on creating headers, not content.
+“重要提示！”：
+- 焦点必须集中在主要主题上！你必须排除任何与其无关的信息！
+- 绝对不能包含任何引言、结论、摘要或参考文献部分的标题。
+- 专心生成标题，不要生成内容本身。
 """
 
     @staticmethod
-    def generate_report_introduction(question: str, research_summary: str = "", language: str = "english", report_format: str = "apa") -> str:
+    def generate_report_introduction(question: str, research_summary: str = "", language: str = "chinese",
+                                     report_format: str = "apa") -> str:
         return f"""{research_summary}\n
-Using the above latest information, Prepare a detailed report introduction on the topic -- {question}.
-- The introduction should be succinct, well-structured, informative with markdown syntax.
-- As this introduction will be part of a larger report, do NOT include any other sections, which are generally present in a report.
-- The introduction should be preceded by an H1 heading with a suitable topic for the entire report.
-- You must use in-text citation references in {report_format.upper()} format and make it with markdown hyperlink placed at the end of the sentence or paragraph that references them like this: ([in-text citation](url)).
-Assume that the current date is {datetime.now(timezone.utc).strftime('%B %d, %Y')} if required.
-- The output must be in {language} language.
+利用上述最新信息，撰写一份关于该主题的详细报告引言—— {question}。
+- 引言应简洁、结构良好、信息丰富，并采用 Markdown 语法。
+- 由于引言将作为更大报告的一部分，因此不要包含在报告中常见的其他任何章节。
+- 引言应以一个适合整篇报告主题的 H1 标题开头。
+- 你必须使用 {report_format.upper()} 格式的文中引用，并以 Markdown 超链接的形式放置在引用该内容的句子或段落末尾，如：([文中引用](url))。
+如有需要，假设当前日期为 {datetime.now(timezone.utc).strftime('%Y年%m月%d日')}。
+- 输出必须使用 {language} 语言。
 """
 
-
     @staticmethod
-    def generate_report_conclusion(query: str, report_content: str, language: str = "english", report_format: str = "apa") -> str:
+    def generate_report_conclusion(query: str, report_content: str, language: str = "chinese",
+                                   report_format: str = "apa") -> str:
         """
-        Generate a concise conclusion summarizing the main findings and implications of a research report.
+        生成简洁的结论，总结研究报告的主要发现及其影响。
 
         Args:
-            query (str): The research task or question.
-            report_content (str): The content of the research report.
-            language (str): The language in which the conclusion should be written.
+            query (str): 研究任务或问题。
+            report_content (str): 研究报告的内容。
+            language (str): 撰写结论应使用的语言。
 
         Returns:
-            str: A concise conclusion summarizing the report's main findings and implications.
+            str: 总结了报告主要发现和影响的简明结论。
         """
         prompt = f"""
-    Based on the research report below and research task, please write a concise conclusion that summarizes the main findings and their implications:
+    根据以下研究报告和研究任务，请写出一个简洁的结论，概括主要发现及其影响：
 
-    Research task: {query}
+    研究任务：{query}
 
-    Research Report: {report_content}
+    研究报告：{report_content}
 
-    Your conclusion should:
-    1. Recap the main points of the research
-    2. Highlight the most important findings
-    3. Discuss any implications or next steps
-    4. Be approximately 2-3 paragraphs long
+    你的结论应当：
+    1. 回顾研究的关键点
+    2. 强调最重要的发现
+    3. 探讨任何潜在的影响或下一步行动
+    4. 篇幅大约 2-3 个段落
 
-    If there is no "## Conclusion" section title written at the end of the report, please add it to the top of your conclusion.
-    You must use in-text citation references in {report_format.upper()} format and make it with markdown hyperlink placed at the end of the sentence or paragraph that references them like this: ([in-text citation](url)).
+    如果报告末尾还没有写 "## 结论" 这个章节标题，请在你的结论最上方加上它。
+    你必须使用 {report_format.upper()} 格式的文中引用，并以 Markdown 超链接的形式放置在引用它的句子或段落的末尾，如下所示：([文中引用](url))。
 
-    IMPORTANT: The entire conclusion MUST be written in {language} language.
+    重要提示：整个结论必须用 {language} 语言撰写。
 
-    Write the conclusion:
+    撰写结论：
     """
 
         return prompt
 
 
 class GranitePromptFamily(PromptFamily):
-    """Prompts for IBM's granite models"""
-
+    """IBM Granite 模型的提示词"""
 
     def _get_granite_class(self) -> type[PromptFamily]:
-        """Get the right granite prompt family based on the version number"""
+        """根据版本号获取正确的 Granite 提示词系列类"""
         if "3.3" in self.cfg.smart_llm:
             return Granite33PromptFamily
         if "3" in self.cfg.smart_llm:
             return Granite3PromptFamily
-        # If not a known version, return the default
+        # 如果不是已知版本，则返回默认类
         return PromptFamily
 
     def pretty_print_docs(self, *args, **kwargs) -> str:
@@ -770,7 +764,7 @@ class GranitePromptFamily(PromptFamily):
 
 
 class Granite3PromptFamily(PromptFamily):
-    """Prompts for IBM's granite 3.X models (before 3.3)"""
+    """IBM Granite 3.X 模型 (早于 3.3 版本) 的提示词"""
 
     _DOCUMENTS_PREFIX = "<|start_of_role|>documents<|end_of_role|>\n"
     _DOCUMENTS_SUFFIX = "\n<|end_of_text|>"
@@ -780,8 +774,8 @@ class Granite3PromptFamily(PromptFamily):
         if not docs:
             return ""
         all_documents = "\n\n".join([
-            f"Document {doc.metadata.get('source', i)}\n" + \
-            f"Title: {doc.metadata.get('title')}\n" + \
+            f"文档 {doc.metadata.get('source', i)}\n" + \
+            f"标题：{doc.metadata.get('title')}\n" + \
             doc.page_content
             for i, doc in enumerate(docs)
             if top_n is None or i < top_n
@@ -790,7 +784,7 @@ class Granite3PromptFamily(PromptFamily):
 
     @classmethod
     def join_local_web_documents(cls, docs_context: str | list, web_context: str | list) -> str:
-        """Joins local web documents using Granite's preferred format"""
+        """使用 Granite 偏好的格式连接本地和 Web 文档"""
         if isinstance(docs_context, str) and docs_context.startswith(cls._DOCUMENTS_PREFIX):
             docs_context = docs_context[len(cls._DOCUMENTS_PREFIX):]
         if isinstance(web_context, str) and web_context.endswith(cls._DOCUMENTS_SUFFIX):
@@ -800,7 +794,7 @@ class Granite3PromptFamily(PromptFamily):
 
 
 class Granite33PromptFamily(PromptFamily):
-    """Prompts for IBM's granite 3.3 models"""
+    """IBM Granite 3.3 模型的提示词"""
 
     _DOCUMENT_TEMPLATE = """<|start_of_role|>document {{"document_id": "{document_id}"}}<|end_of_role|>
 {document_content}<|end_of_text|>
@@ -810,7 +804,7 @@ class Granite33PromptFamily(PromptFamily):
     def _get_content(doc: Document) -> str:
         doc_content = doc.page_content
         if title := doc.metadata.get("title"):
-            doc_content = f"Title: {title}\n{doc_content}"
+            doc_content = f"标题：{title}\n{doc_content}"
         return doc_content.strip()
 
     @classmethod
@@ -826,21 +820,22 @@ class Granite33PromptFamily(PromptFamily):
 
     @classmethod
     def join_local_web_documents(cls, docs_context: str | list, web_context: str | list) -> str:
-        """Joins local web documents using Granite's preferred format"""
+        """使用 Granite 偏好的格式连接本地和 Web 文档"""
         return "\n\n".join([docs_context, web_context])
 
-## Factory ######################################################################
 
-# This is the function signature for the various prompt generator functions
+## 工厂方法 (Factory) ######################################################################
+
+# 这是各类提示词生成函数的函数签名
 PROMPT_GENERATOR = Callable[
     [
-        str,        # question
-        str,        # context
-        str,        # report_source
-        str,        # report_format
-        str | None, # tone
-        int,        # total_words
-        str,        # language
+        str,  # question
+        str,  # context
+        str,  # report_source
+        str,  # report_format
+        str | None,  # tone
+        int,  # total_words
+        str,  # language
     ],
     str,
 ]
@@ -856,16 +851,16 @@ report_type_mapping = {
 
 
 def get_prompt_by_report_type(
-    report_type: str,
-    prompt_family: type[PromptFamily] | PromptFamily,
+        report_type: str,
+        prompt_family: type[PromptFamily] | PromptFamily,
 ):
     prompt_by_type = getattr(prompt_family, report_type_mapping.get(report_type, ""), None)
     default_report_type = ReportType.ResearchReport.value
     if not prompt_by_type:
         warnings.warn(
-            f"Invalid report type: {report_type}.\n"
-            f"Please use one of the following: {', '.join([enum_value for enum_value in report_type_mapping.keys()])}\n"
-            f"Using default report type: {default_report_type} prompt.",
+            f"无效的报告类型：{report_type}。\n"
+            f"请使用以下类型之一：{', '.join([enum_value for enum_value in report_type_mapping.keys()])}\n"
+            f"正在使用默认报告类型的提示词：{default_report_type}。",
             UserWarning,
         )
         prompt_by_type = getattr(prompt_family, report_type_mapping.get(default_report_type))
@@ -883,17 +878,17 @@ prompt_family_mapping = {
 
 
 def get_prompt_family(
-    prompt_family_name: PromptFamilyEnum | str, config: Config,
+        prompt_family_name: PromptFamilyEnum | str, config: Config,
 ) -> PromptFamily:
-    """Get a prompt family by name or value."""
+    """按名称或值获取提示词家族实例。"""
     if isinstance(prompt_family_name, PromptFamilyEnum):
         prompt_family_name = prompt_family_name.value
     if prompt_family := prompt_family_mapping.get(prompt_family_name):
         return prompt_family(config)
     warnings.warn(
-        f"Invalid prompt family: {prompt_family_name}.\n"
-        f"Please use one of the following: {', '.join([enum_value for enum_value in prompt_family_mapping.keys()])}\n"
-        f"Using default prompt family: {PromptFamilyEnum.Default.value} prompt.",
+        f"无效的提示词家族：{prompt_family_name}。\n"
+        f"请使用以下选项之一：{', '.join([enum_value for enum_value in prompt_family_mapping.keys()])}\n"
+        f"正在使用默认提示词家族：{PromptFamilyEnum.Default.value}。",
         UserWarning,
     )
-    return PromptFamily()
+    return PromptFamily(config)
