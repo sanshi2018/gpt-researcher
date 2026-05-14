@@ -4,9 +4,9 @@ DEFAULT_CONFIG: BaseConfig = {
     "RETRIEVER": "tavily",
     "EMBEDDING": "openrouter:text-embedding-3-small",
     "SIMILARITY_THRESHOLD": 0.42,
-    "FAST_LLM": "openrouter:gpt-4o-mini",
-    "SMART_LLM": "openrouter:gpt-4.1",  # Has support for long responses (2k+ words).
-    "STRATEGIC_LLM": "openrouter:o4-mini",  # Can be used with o1 or o3, please note it will make tasks slower.
+    "FAST_LLM": "openrouter:z-ai/glm-4.7-flash",
+    "SMART_LLM": "openrouter:z-ai/glm-4.7-flash",  # Has support for long responses (2k+ words).
+    "STRATEGIC_LLM": "openrouter:z-ai/glm-4.7-flash",  # Can be used with o1 or o3, please note it will make tasks slower.
     "FAST_TOKEN_LIMIT": 3000,
     "SMART_TOKEN_LIMIT": 6000,
     "STRATEGIC_TOKEN_LIMIT": 4000,

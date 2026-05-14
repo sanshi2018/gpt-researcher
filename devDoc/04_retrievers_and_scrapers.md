@@ -49,7 +49,7 @@ flowchart LR
     SP -->|"cfg.scraper=tavily_extract"| TE[TavilyExtract]
     SP -->|"cfg.scraper=web_base_loader"| WB[LangChain WebBaseLoader]
 
-    PM --> Out[{url, raw_content, image_urls, title}]
+    PM --> Out["{url, raw_content, image_urls, title}"]
     BS --> Out
     BR --> Out
     ND --> Out
@@ -111,6 +111,7 @@ class XxxScraper:
 ### 1) Retrievers 注册表与工厂
 
 **所有 retriever 类的导入与注册**（`retrievers/__init__.py`）：
+[__init__.py](https://gemini.google.com/app/3c22ab9be6b8b1fe)
 
 ```python
 from .arxiv.arxiv import ArxivSearch

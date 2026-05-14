@@ -61,20 +61,20 @@ flowchart TD
     A[LLM response] --> B{json.loads OK?}
     B -- yes --> R[(server, agent_role_prompt)]
     B -- no --> C{json_repair.loads OK?}
-    C -- yes & 含字段 --> R
-    C -- no --> D[regex 抓 第一个 {…}]
-    D -- 找到 & json.loads OK --> R
-    D -- 都失败 --> Default[Default Agent + 默认 prompt]
+    C -- "yes & 含字段" --> R
+    C -- no --> D["regex 抓 第一个 {…}"]
+    D -- "找到 & json.loads OK" --> R
+    D -- 都失败 --> Default["Default Agent + 默认 prompt"]
 ```
 
 ### `generate_sub_queries` 的 3 档降级链
 
 ```mermaid
 flowchart LR
-    A[STRATEGIC_LLM<br/>max_tokens=None<br/>reasoning_effort=Medium] -- ok --> Z[json_repair.loads → list[str]]
-    A -- 报错<br/>(常因 max_tokens=None 不被支持) --> B[STRATEGIC_LLM<br/>max_tokens=cfg.strategic_token_limit]
+    A["STRATEGIC_LLM<br/>max_tokens=None<br/>reasoning_effort=Medium"] -- ok --> Z["json_repair.loads → list[str]"]
+    A -- "报错<br/>(常因 max_tokens=None 不被支持)" --> B["STRATEGIC_LLM<br/>max_tokens=cfg.strategic_token_limit"]
     B -- ok --> Z
-    B -- 还失败 --> C[SMART_LLM<br/>temperature=cfg.temperature]
+    B -- 还失败 --> C["SMART_LLM<br/>temperature=cfg.temperature"]
     C --> Z
 ```
 

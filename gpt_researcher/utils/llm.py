@@ -181,7 +181,7 @@ async def construct_subtopics(
         provider = get_llm(config.smart_llm_provider, **provider_kwargs)
 
         model = provider.llm
-
+        # “函数式管道”或“责任链 / 装饰器”组合：每一步接收上一步的输出并继续处理。
         chain = prompt | model | parser
 
         output = await chain.ainvoke({
